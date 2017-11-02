@@ -66,6 +66,8 @@ namespace pointcloud_to_laserscan
     private_nh_.param<double>("range_min", range_min_, 0.45);
     private_nh_.param<double>("range_max", range_max_, 4.0);
 
+    private_nh_.param<bool>("use_largest_range",use_largest_range_ , false);
+
     int concurrency_level;
     private_nh_.param<int>("concurrency_level", concurrency_level, 1);
     private_nh_.param<bool>("use_inf", use_inf_, true);
@@ -159,15 +161,22 @@ namespace pointcloud_to_laserscan
     uint32_t ranges_size = std::ceil((output.angle_max - output.angle_min) / output.angle_increment);
 
     //determine if laserscan rays with no obstacle data will evaluate to infinity or max_range
-    if (use_inf_)
+
+    if (use_largest_range_)
     {
-      output.ranges.assign(ranges_size, std::numeric_limits<double>::infinity());
+      output.ranges.assign(ranges_size, 0.0);
     }
     else
     {
-      output.ranges.assign(ranges_size, output.range_max + 1.0);
+      if (use_inf_)
+      {
+          output.ranges.assign(ranges_size, std::numeric_limits<double>::infinity());
+      }
+      else
+      {
+          output.ranges.assign(ranges_size, output.range_max + 1.0);
+      }
     }
-
     sensor_msgs::PointCloud2ConstPtr cloud_out;
     sensor_msgs::PointCloud2Ptr cloud;
 
@@ -227,7 +236,11 @@ namespace pointcloud_to_laserscan
 
       //overwrite range at laserscan ray if new range is smaller
       int index = (angle - output.angle_min) / output.angle_increment;
-      if (range < output.ranges[index])
+      if (use_largest_range_ && range > output.ranges[index])
+      {
+        output.ranges[index] = range;
+      }
+      else if (range < output.ranges[index])
       {
         output.ranges[index] = range;
       }
